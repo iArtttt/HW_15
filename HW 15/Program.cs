@@ -63,8 +63,11 @@ namespace HW_15
 
         public async Task Parse()
         {
-            var buffer = new byte[512 * 1024  * 1024];
-            var bufferResult = new byte[512 * 1024 * 1024];
+            const int size = 512 * 1024 * 1024;
+
+            var buffer = new byte[size];
+            var bufferTemp = new byte[size];
+            var bufferResult = new byte[size];
 
             var readTask = Task.CompletedTask;
             var writeTask = Task.CompletedTask;
@@ -74,33 +77,59 @@ namespace HW_15
 
             Stopwatch stopwatch = Stopwatch.StartNew();
             
-            readTask = stream.ReadAsync(buffer, 0, buffer.Length);
-            
-            while (stream.Position < stream.Length)
+            if (stream.Position < stream.Length)
             {
-                await readTask;
-                var count = buffer.Length;
-               
                 readTask = stream.ReadAsync(buffer, 0, buffer.Length);
+                var count = 0;
 
-                int resultCount = 0;
-               
-                for (int i = 0; i < count; i++)
+
+                while (stream.Position < stream.Length)
                 {
-                    var ch = (char)buffer[i];
-                    if (char.IsAscii(ch))
-                    {
-                        bufferResult[i] = buffer[i];
-                        resultCount++;
-                    }
-                }
+                    await readTask;
+                    
+                    count = bufferTemp[0] == default ? buffer.Count() : bufferTemp.Count();
+               
+                    readTask = buffer[0] == default ? 
+                        stream.ReadAsync(buffer, 0, buffer.Length) : 
+                        stream.ReadAsync(bufferTemp, 0, bufferTemp.Length);
 
+                    int resultCount = 0;
+                    
+                    if (buffer != null)
+                    {
+                        for (int i = 0; i < count; i++)
+                        {
+                            var ch = (char)buffer[i];
+                            if (char.IsAscii(ch))
+                            {
+                                bufferResult[i] = buffer[i];
+                                resultCount++;
+                            }
+                        }
+                        buffer[0] = default;
+                    }
+                    else
+                    {
+                        for (int i = 0; i < count; i++)
+                        {
+                            var ch = (char)bufferTemp[i];
+                            if (char.IsAscii(ch))
+                            {
+                                bufferResult[i] = bufferTemp[i];
+                                resultCount++;
+                            }
+                        }
+                        bufferTemp[0] = default;
+                    }
+
+
+                    await writeTask;
+                    writeTask = resultStream.WriteAsync(bufferResult, 0, resultCount);
+                }
                 await writeTask;
-                writeTask = resultStream.WriteAsync(bufferResult, 0, resultCount);
+                stopwatch.Stop();
+                Console.WriteLine(stopwatch.Elapsed);
             }
-            await writeTask;
-            stopwatch.Stop();
-            Console.WriteLine(stopwatch.Elapsed);
         }
     }
     internal class Program
